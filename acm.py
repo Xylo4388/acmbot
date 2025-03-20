@@ -7,6 +7,7 @@ import json
 from discord import app_commands
 import traceback
 import requests
+from discord.ui import View, Button
 
 # Load environment variables
 load_dotenv()
@@ -81,6 +82,31 @@ async def on_ready():
         )
     except Exception as e:
         print(f"Error syncing commands: {e}")
+
+
+@bot.tree.command(name="discord", description="Get a link to join our Discord server!")
+async def discord_embed(interaction: discord.Interaction):
+    # Create an embed
+    embed = discord.Embed(
+        title="Join our Discord Server!",
+        description="Click the button below to join our Discord server!",
+        color=discord.Color.blue()
+    )
+
+    # Create a button
+    button = Button(
+        label="🔗 Join Server",
+        style=discord.ButtonStyle.link,
+        url="https://discord.gg/BXTeeSBPWE"
+    )
+
+    # Add the button to a view
+    view = View()
+    view.add_item(button)
+
+    # Send the embed with the view
+    await interaction.response.send_message(embed=embed, view=view)
+
 
 
 @bot.tree.command(name="altcheck", description="Check for alts on a Minecraft account")
