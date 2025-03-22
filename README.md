@@ -47,13 +47,12 @@ A powerful Discord bot for checking Minecraft player statistics and managing alt
    ```
 3. Get a [Polsu API Key](https://polsu.xyz/api/apikey) and a [Urchin Key](https://discord.gg/zVxT5n9J39)
 4. Create a `.env` file in `\acm\config` with your the following:
-   ```
-POLSU_KEY=your_key_here
-URCHIN_KEY=your_key_here
-TOKEN=your_token_here
-SUGGESTIONS=your_channel_here
-RENDERS=your_channel_here
-ADMIN_IDS=your_id_here
+   ```POLSU_KEY=your_key_here
+   URCHIN_KEY=your_key_here
+   TOKEN=your_token_here
+   SUGGESTIONS=your_channel_here
+   RENDERS=your_channel_here
+   ADMIN_IDS=your_id_here
    ```
 5. Run the bot:
    ```bash
