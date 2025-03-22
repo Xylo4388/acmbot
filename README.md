@@ -33,7 +33,7 @@ A powerful Discord bot for checking Minecraft player statistics and managing alt
   - Available render types: default, walking, cheering, sleeping
 - `/discord`: Get the bot's invite link
 
-### Server (Requires Manage Messages Permission)
+### Server (Requires Admin Permissions)
 - `/announce <channel> <message>`: Make server announcements
 - `/poll <question> <option1> <option2> [option3] [option4]`: Create server polls
 - `/clear <amount> [channel]`: Clear messages in a channel (1-100)
@@ -45,13 +45,19 @@ A powerful Discord bot for checking Minecraft player statistics and managing alt
    ```bash
    pip install -r requirements.txt
    ```
-3. Create a `.env` file with your bot token:
+3. Get a [Polsu API Key](https://polsu.xyz/api/apikey) and a [Urchin Key](https://discord.gg/zVxT5n9J39)
+4. Create a `.env` file in `\acm\config` with your the following:
    ```
-   DISCORD_TOKEN=your_token_here
+POLSU_KEY=your_key_here
+URCHIN_KEY=your_key_here
+TOKEN=your_token_here
+SUGGESTIONS=your_channel_here
+RENDERS=your_channel_here
+ADMIN_IDS=your_id_here
    ```
-4. Run the bot:
+5. Run the bot:
    ```bash
-   python acm.py
+   py acm.py
    ```
 
 ## Development
@@ -61,6 +67,9 @@ The bot is built with:
 - discord.py
 - aiohttp
 - Other dependencies listed in requirements.txt
+
+## Examples
+
 
 ## Contributing
 
@@ -73,4 +82,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contact
 
 For support, contact the developer via Discord:  
-[Contact Developer](https://discord.com/users/569334038326804490)
+[Contact Developer](https://discord.gg/BXTeeSBPWE/)
