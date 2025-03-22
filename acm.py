@@ -9,16 +9,18 @@ import traceback
 import requests
 from discord.ui import View, Button
 
-# Load environment variables
 load_dotenv()
+#Bot Token
 TOKEN = os.environ["TOKEN"]
-POLSU_API_KEY = os.environ["POLSU_API_KEY"]
-HYPIXEL_API_KEY = os.environ["HYPIXEL_API_KEY"]
-
-# ID of the user to whom suggestions should be sent
-SUGGESTION_CHANNEL = 1351712640434438154
-RENDER_CHANNEL = 1351712676471902208
-ADMIN_ID = 569334038326804490
+#API Keys
+POLSU_API_KEY = os.environ["POLSU_KEY"]
+HYPIXEL_API_KEY = os.environ["HYPIXEL_KEY"]
+URCHIN_API_KEY = os.environ["URCHIN_KEY"]
+#Channels
+SUGGESTION_CHANNEL = os.environ["SUGGESTIONS"]
+RENDER_CHANNEL = os.environ["RENDERS"]
+#Admins
+ADMIN_IDS = [int(id) for id in os.environ["ADMIN_IDS"].split(",")]
 
 # Bot setup
 intents = discord.Intents.default()
@@ -43,7 +45,7 @@ def save_render_type_data(data):
 
 
 def calculate_fkdr(kills, deaths):
-    return kills / deaths if deaths != 0 else kills  # Avoid division by zero
+    return kills / deaths if deaths != 0 else kills
 
 
 # Hypixel API call
@@ -62,12 +64,10 @@ def fetch_hypixel_data(username, api_key):
 
             return final_kills, final_deaths
         else:
-            return None  # Handle case where player data is unavailable
+            return None
     else:
-        return None  # Handle failed API call
+        return None
 
-
-# On bot ready
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -83,30 +83,23 @@ async def on_ready():
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
+async def fetch_urchin_data(username, api_key):
+    try:
+        url = f"https://urchin.ws/player/{username}?api_key={api_key}"
+        print(f"[DEBUG] Fetching urchin data for username: {username} with URL: {url}")
 
-@bot.tree.command(name="discord", description="Get a link to join our Discord server!")
-async def discord_embed(interaction: discord.Interaction):
-    # Create an embed
-    embed = discord.Embed(
-        title="Join our Discord Server!",
-        description="Click the button below to join our Discord server!",
-        color=discord.Color.blue()
-    )
+        async with aiohttp.ClientSession() as session:
+            response = await session.get(url)
+            if response.status != 200:
+                print(f"[DEBUG] Failed to fetch urchin data for {username}. Status Code: {response.status}")
+                return None
 
-    # Create a button
-    button = Button(
-        label="🔗 Join Server",
-        style=discord.ButtonStyle.link,
-        url="https://discord.gg/BXTeeSBPWE"
-    )
-
-    # Add the button to a view
-    view = View()
-    view.add_item(button)
-
-    # Send the embed with the view
-    await interaction.response.send_message(embed=embed, view=view)
-
+            data = await response.json()
+            print(f"[DEBUG] Received urchin data for {username}: {data}")
+            return data
+    except Exception as e:
+        print(f"[ERROR] Error fetching urchin data for {username}: {e}")
+        return None
 
 
 @bot.tree.command(name="altcheck", description="Check for alts on a Minecraft account")
@@ -146,6 +139,13 @@ async def altcheck(interaction: discord.Interaction, username: str):
             rank = polsu_data_rank.get("data", {}).get("rank", None)
             formatted_current_username = f"[{rank}] {correct_username}" if rank else correct_username
 
+            # Fetch urchin data for the main username
+            urchin_data_main = await fetch_urchin_data(correct_username, URCHIN_API_KEY)
+            if urchin_data_main and "tags" in urchin_data_main and len(urchin_data_main["tags"]) > 0:
+                type_main = (urchin_data_main["tags"][0].get("type", "None")).title()
+            else:
+                type_main = "None"
+
             # Fetch Hypixel FKDR stats for the main account
             async def fetch_hypixel_stats(player_username):
                 hypixel_url = f"https://api.hypixel.net/player?name={player_username}&key={HYPIXEL_API_KEY}"
@@ -163,8 +163,7 @@ async def altcheck(interaction: discord.Interaction, username: str):
                     stats = hypixel_data["player"].get("stats", {}).get("Bedwars", {})
                     final_kills = stats.get("final_kills_bedwars", 0)
                     final_deaths = stats.get("final_deaths_bedwars", 0)
-                    print(
-                        f"[DEBUG] Stats for {player_username}: Final Kills = {final_kills}, Final Deaths = {final_deaths}")
+                    print(f"[DEBUG] Stats for {player_username}: Final Kills = {final_kills}, Final Deaths = {final_deaths}")
                     return final_kills, final_deaths
                 except Exception as e:
                     print(f"[ERROR] Error fetching Hypixel stats for {player_username}: {e}")
@@ -183,6 +182,8 @@ async def altcheck(interaction: discord.Interaction, username: str):
             if isinstance(current_fkdr, float):
                 current_fkdr = f"{current_fkdr:.2f}"  # Format FKDR to 2 decimal places
 
+            alts = []
+
             # Fetch alts using the quickbuy API
             polsu_url_alts = f"https://api.polsu.xyz/polsu/bedwars/quickbuy/all?uuid={uuid}"
             polsu_response_alts = await session.get(polsu_url_alts, headers=headers)
@@ -192,7 +193,6 @@ async def altcheck(interaction: discord.Interaction, username: str):
                 return
 
             polsu_data_alts = await polsu_response_alts.json()
-            alts = []
 
             if polsu_data_alts.get("success") and "data" in polsu_data_alts and "quickbuy" in polsu_data_alts["data"]:
                 quickbuy_array = polsu_data_alts["data"]["quickbuy"]
@@ -210,7 +210,16 @@ async def altcheck(interaction: discord.Interaction, username: str):
                     mojang_alt_data = await mojang_alt_response.json()
                     alt_uuid = mojang_alt_data.get("id")
 
-                    # Fetch rank and FKDR for the alt
+                    # Fetch urchin data for the alt username
+                    urchin_data_alt = await fetch_urchin_data(alt_username, URCHIN_API_KEY)
+                    # Check if 'tags' exist and extract the first tag's type
+                    if urchin_data_alt and "tags" in urchin_data_alt and len(urchin_data_alt["tags"]) > 0:
+                        type_alt = (urchin_data_alt["tags"][0].get("type", "None")).title()
+                    else:
+                        type_alt = "None"
+
+
+    # Fetch rank and FKDR for the alt
                     polsu_response_rank_alt = await session.get(
                         f"https://api.polsu.xyz/polsu/bedwars/formatted?uuid={alt_uuid}", headers=headers)
                     formatted_alt_username = alt_username
@@ -225,41 +234,39 @@ async def altcheck(interaction: discord.Interaction, username: str):
                     if isinstance(alt_fkdr, float):
                         alt_fkdr = f"{alt_fkdr:.2f}"
 
-                    alts.append(f"[{formatted_alt_username}](https://namemc.com/profile/{alt_uuid}) | {alt_fkdr} FKDR")
+                    alts.append(f"[{formatted_alt_username}](https://namemc.com/profile/{alt_uuid}) | {alt_fkdr} FKDR | {type_alt}")
 
             alts.sort()
+            print(f"Main Account Type: {type_main}")
+            print(f"Alt Account Types: {type_alt}")
 
-            # Create the embed with the player's skin image as the thumbnail
+
+# Create the embed with the player's skin image as the thumbnail
             embed = discord.Embed(title=f"Alt Check: {formatted_current_username}", color=0x00ff00)
             embed.set_thumbnail(url=skin_image_url)
             embed.add_field(name="UUID", value=uuid, inline=False)
             embed.add_field(name="NameMC Profile", value=f"[Link]({name_mc_link})", inline=False)
             embed.add_field(name="FKDR", value=f"{current_fkdr}", inline=False)
+            embed.add_field(name="Urchin Tags", value=f"{type_main}", inline=False)
 
             if alts:
                 embed.add_field(name="Alts Found", value="\n".join(alts), inline=False)
             else:
-                embed.add_field(name="Alts Found", value="No alts found", inline=False)
+                embed.add_field(name="Alts Found", value="No alts found.", inline=False)
 
-            embed.set_footer(
-                text=f"Requested by: {interaction.user} in {interaction.guild}",
-                icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
-            )
-            await interaction.followup.send(
-                content="For more info, visit the **[wiki](https://github.com/Xylo4388/acmbot/wiki)**",
-                embed=embed
-            )
+            await interaction.followup.send(embed=embed)
 
     except Exception as e:
-        print(f"[ERROR] Exception occurred while running /altcheck with username: {username}")
+        print(f"[ERROR] Error occurred in altcheck command: {e}")
+        await interaction.followup.send(f"An error occurred: {e}")
         traceback.print_exc()
-        await interaction.followup.send("An unexpected error occurred. Please try again later.")
 
 # Set render type command (only for specific user)
 @bot.tree.command(name="setrender", description="Set render type for a Minecraft username")
 @app_commands.describe(username="The Minecraft username", render_type="The render type to set")
 async def set_render_type(interaction: discord.Interaction, username: str, render_type: str):
-    if interaction.user.id != ADMIN_ID:
+    # Check if the user's ID is in the list of admin IDs
+    if interaction.user.id not in ADMIN_IDS:
         await interaction.response.send_message("You are not authorized to use this command.")
         return
 
@@ -361,6 +368,30 @@ async def request_change(interaction: discord.Interaction, username: str, render
     await interaction.response.send_message(
         "✅ Your request for the player model change has been sent! Thank you.", ephemeral=True
     )
+
+@bot.tree.command(name="discord", description="Get a link to join our Discord server!")
+async def discord_embed(interaction: discord.Interaction):
+    # Create an embed
+    embed = discord.Embed(
+        title="Join our Discord Server!",
+        description="Click the button below to join our Discord server!",
+        color=discord.Color.blue()
+    )
+
+    # Create a button
+    button = Button(
+        label="🔗 Join Server",
+        style=discord.ButtonStyle.link,
+        url="https://discord.gg/BXTeeSBPWE"
+    )
+
+    # Add the button to a view
+    view = View()
+    view.add_item(button)
+
+    # Send the embed with the view
+    await interaction.response.send_message(embed=embed, view=view)
+
 
 
 # Run the bot
